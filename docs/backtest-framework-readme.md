@@ -1,6 +1,6 @@
 # Backtest Framework
 
-A modular, multi-market backtesting framework integrated into the Vibe Trading AI project. Supports equities, crypto, forex, futures, and options portfolios with real-time data fetching from 20+ sources.
+A modular, multi-market backtesting framework integrated into the Vibe Trading AI project. Supports equities, crypto, forex, futures, and options portfolios with data fetching from 18+ registered sources.
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -10,25 +10,40 @@ A modular, multi-market backtesting framework integrated into the Vibe Trading A
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Data Sources](#data-sources)
-- [Market Engines](#market-engines)
-- [Signal Engine](#signal-engine)
-- [Validation](#validation)
-- [Metrics & Artifacts](#metrics--artifacts)
-- [Trust Layer Run Cards](#trust-layer-run-cards)
-- [Contributing](#contributing)
-- [License](#license)
+- [Backtest Framework](#backtest-framework)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Features](#features)
+  - [Architecture](#architecture)
+    - [Engine Inheritance](#engine-inheritance)
+  - [Quick Start](#quick-start)
+  - [Configuration](#configuration)
+    - [Required Fields](#required-fields)
+    - [Optional Fields](#optional-fields)
+    - [Validation Config](#validation-config)
+  - [Data Sources](#data-sources)
+    - [Supported Sources](#supported-sources)
+    - [Auto Routing](#auto-routing)
+  - [Market Engines](#market-engines)
+  - [Signal Engine](#signal-engine)
+    - [Signal Interface](#signal-interface)
+    - [Data Available in `data_map`](#data-available-in-data_map)
+  - [Validation](#validation)
+    - [Monte Carlo Permutation Test](#monte-carlo-permutation-test)
+    - [Bootstrap Sharpe Confidence Interval](#bootstrap-sharpe-confidence-interval)
+    - [Walk-Forward Analysis](#walk-forward-analysis)
+  - [Metrics \& Artifacts](#metrics--artifacts)
+    - [Available Metrics](#available-metrics)
+  - [Trust Layer Run Cards](#trust-layer-run-cards)
+  - [Project Structure](#project-structure)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ---
 
 ## Overview
 
-This framework provides an event-driven backtesting engine for evaluating trading strategies against historical market data. It supports **8 distinct market engines** (China A-shares, Crypto, Global Equity, Forex, China Futures, Global Futures, Options Portfolios, and Composite) with automatic data fetching from **20+ data sources**.
+This framework provides an event-driven backtesting engine for evaluating trading strategies against historical market data. It supports **8 distinct market engines** (China A-shares, Crypto, Global Equity, Forex, China Futures, Global Futures, Options Portfolios, and Composite) with automatic data fetching from **18+ registered data sources** plus SEC EDGAR filings and RSSHub event enrichment.
 
 The framework is designed to:
 
@@ -43,9 +58,9 @@ The framework is designed to:
 - **8 Market Engines** — China A-shares, Crypto, Global Equity, Forex, China Futures, Global Futures, Options Portfolio, and Composite (cross-market)
 - **Event-driven architecture** — sequential bar-by-bar replay prevents accidental use of future information
 - **Dataclass models** — `Position`, `TradeRecord`, and `EquitySnapshot` are frozen dataclasses (no external Pydantic dependency for data models)
-- **AST-based strategy safety** — signal engine source is statically analyzed before import (no decorators, no non-literal defaults, no top-level executable statements, no circular self-imports)
+- **AST-based strategy safety** — signal engine source is statically analyzed before import (no decorators, no non-literal defaults, no top-level executable statements, no unsafe annotations)
 - **Dynamic engine routing** — `BaseEngine` subclasses are selected at runtime based on symbol patterns and data source
-- **20+ Data Sources** — Tushare, yfinance, OKX, AKShare, CCXT, Futu, MootDX, Alpha Vantage, Finnhub, FMP, BaoStock, EastMoney, Sina, Stooq, Tiingo, Tencent, SEC EDGAR, RSSHub (event feeds), plus a `local` loader
+- **18+ Data Sources** — 18 registered loaders (Tushare, yfinance, OKX, AKShare, CCXT, Futu, MootDX, Alpha Vantage, Finnhub, FMP, BaoStock, EastMoney, Sina, Stooq, Tiingo, Tencent, Yahoo, local) plus SEC EDGAR filings and RSSHub event enrichment.
 - **Runtime fallback chains** — when a primary data source returns empty, the runner transparently tries the next source in the fallback chain
 - **Fundamental data enrichment** — optional Tushare statement fields (balance sheet, income statement, cash flow) enriched onto price frames before signal generation
 - **Event feed enrichment** — RSSHub-based alternative data feeds (news, events) enriched onto price frames with point-in-time safety
@@ -74,7 +89,7 @@ The framework is designed to:
 The runner (`backtest/runner.py`) orchestrates the pipeline:
 
 1. Load `config.json` and `code/signal_engine.py` from a run directory
-2. AST-validate the signal engine source (rejects decorators, non-literal defaults, top-level statements)
+2. AST-validate the signal engine source (rejects decorators, non-literal defaults, top-level statements, unsafe annotations)
 3. Fetch market data via a selected or auto-routed data loader (with fallback chains)
 4. Enrich with optional fundamental / event feed data
 5. Run bar-by-bar backtest through the appropriate market engine (selected by symbol pattern)
@@ -124,7 +139,7 @@ Example `config.json`:
   "source": "auto",
   "interval": "1D",
   "engine": "daily",
-  "initial_cash": 100000
+  "initial_cash": 1000000
 }
 ```
 
@@ -166,27 +181,27 @@ Backtest configuration lives in a single `config.json` file inside each run dire
 
 ### Required Fields
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `codes` | `List[str]` | (required) | Instrument codes/symbols |
-| `start_date` | `str` | (required) | Start date (YYYY-MM-DD) |
-| `end_date` | `str` | (required) | End date (YYYY-MM-DD) |
+| Field        | Type        | Default    | Description              |
+| ------------ | ----------- | ---------- | ------------------------ |
+| `codes`      | `List[str]` | (required) | Instrument codes/symbols |
+| `start_date` | `str`       | (required) | Start date (YYYY-MM-DD)  |
+| `end_date`   | `str`       | (required) | End date (YYYY-MM-DD)    |
 
 ### Optional Fields
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `source` | `str` | `"tushare"` | Data source. Use `"auto"` for cross-market auto-routing |
-| `interval` | `str` | `"1D"` | Bar size: `1m`, `5m`, `15m`, `30m`, `1H`, `4H`, `1D` |
-| `engine` | `str` | `"daily"` | Backtest engine type: `"daily"` or `"options"` |
-| `initial_cash` | `float` | `1_000_000` | Starting capital |
-| `leverage` | `float` | `1.0` | Default leverage |
-| `benchmark` | `str` | `"auto"` | Benchmark ticker (or `"auto"` for implicit by market) |
-| `fundamental_fields` | `Dict[str, List[str]]` | — | Tushare statement field enrichment (table → field list) |
-| `event_feeds` | `List[Dict]` | — | RSSHub event feed enrichment definitions |
-| `optimizer` | `str` | — | Optimizer name: `mean_variance`, `risk_parity`, `equal_volatility`, `max_diversification` |
-| `optimizer_params` | `dict` | `{}` | Parameters passed to the optimizer |
-| `validation` | `dict` | — | Statistical validation configuration (see below) |
+| Field                | Type                   | Default     | Description                                                                               |
+| -------------------- | ---------------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `source`             | `str`                  | `"tushare"` | Data source. Use `"auto"` for cross-market auto-routing                                   |
+| `interval`           | `str`                  | `"1D"`      | Bar size: `1m`, `5m`, `15m`, `30m`, `1H`, `4H`, `1D`                                      |
+| `engine`             | `str`                  | `"daily"`   | Backtest engine type: `"daily"` or `"options"`                                            |
+| `initial_cash`       | `float`                | `1_000_000` | Starting capital                                                                          |
+| `leverage`           | `float`                | `1.0`       | Default leverage                                                                          |
+| `benchmark`          | `str`                  | `"auto"`    | Benchmark ticker (or `"auto"` for implicit by market)                                     |
+| `fundamental_fields` | `Dict[str, List[str]]` | —           | Tushare statement field enrichment (table → field list)                                   |
+| `event_feeds`        | `List[Dict]`           | —           | RSSHub event feed enrichment definitions                                                  |
+| `optimizer`          | `str`                  | —           | Optimizer name: `mean_variance`, `risk_parity`, `equal_volatility`, `max_diversification` |
+| `optimizer_params`   | `dict`                 | `{}`        | Parameters passed to the optimizer                                                        |
+| `validation`         | `dict`                 | —           | Statistical validation configuration (see below)                                          |
 
 ### Validation Config
 
@@ -201,73 +216,73 @@ Backtest configuration lives in a single `config.json` file inside each run dire
 ```
 
 This triggers three statistical checks on completed backtests:
+
 - **Monte Carlo permutation test** — shuffles trade P&L order to test if observed Sharpe / max-drawdown is statistically significant (p-value < 0.05 means performance is not explainable by random ordering alone).
 - **Bootstrap Sharpe CI** — resamples daily returns to estimate confidence interval on Sharpe ratio and probability that Sharpe > 0.
 - **Walk-Forward analysis** — splits the backtest into sequential non-overlapping windows, evaluates metrics per window, and computes a consistency rate (fraction of windows that are profitable).
 
 ## Data Sources
 
-The framework includes **20+ data loaders**, registered in a global loader registry (`backtest/loaders/registry.py`). When `source="auto"`, the runner detects the market type from each symbol and routes it to the appropriate loader with fallback chains.
+The framework includes **18 registered data loaders**, registered in a global loader registry (`backtest/loaders/registry.py`). When `source="auto"`, the runner detects the market type from each symbol and routes it to the appropriate loader with fallback chains. Enrichment providers (SEC EDGAR filings, RSSHub events) can augment data after loading.
 
 ### Supported Sources
 
-| Source | Markets | Notes |
-|---|---|---|
-| `tushare` | China A-shares, Funds, Futures | Primary source for mainland China |
-| `yfinance` | US / HK equities | Universal fallback for equity benchmarks |
-| `okx` | Crypto | Direct OKX exchange API |
-| `akshare` | A-shares, Macro, Forex | Broad Chinese market coverage |
-| `ccxt` | Crypto | Multi-exchange via CCXT library |
-| `futu` | HK / A-shares | Futu Securities API |
-| `mootdx` | A-shares | MootDX unofficial API |
-| `alphavantage` | Global equities | Alpha Vantage API |
-| `finnhub` | Global equities | Finnhub API |
-| `fmp` | Global equities | Financial Modeling Prep API |
-| `baostock` | A-shares | BaoStock data |
-| `eastmoney` | A-shares | EastMoney data |
-| `sina` | A-shares | Sina Finance API |
-| `stooq` | Global | Stooq data |
-| `tiingo` | US equities | Tiingo API |
-| `tencent` | A-shares / HK | Tencent finance data |
-| `sec_edgar_client` | US filings | SEC EDGAR filings (for signals) |
-| `local` | Local files | Read from local CSV files |
-| `rsshub_events` | Events | RSSHub-based event feeds (enrichment only) |
+| Source             | Markets                        | Notes                                                       |
+| ------------------ | ------------------------------ | ----------------------------------------------------------- |
+| `tushare`          | China A-shares, Funds, Futures | Primary source for mainland China                           |
+| `yahoo`            | US / HK equities               | Direct Yahoo chart API (no-auth, no yfinance dependency)    |
+| `yfinance`         | US / HK equities               | Universal fallback via yfinance package                     |
+| `okx`              | Crypto                         | Direct OKX exchange API                                     |
+| `akshare`          | A-shares, Macro, Forex         | Broad Chinese market coverage                               |
+| `ccxt`             | Crypto                         | Multi-exchange via CCXT library                             |
+| `futu`             | HK / A-shares                  | Futu Securities API                                         |
+| `mootdx`           | A-shares                       | MootDX unofficial API                                       |
+| `alphavantage`     | Global equities                | Alpha Vantage API                                           |
+| `finnhub`          | Global equities                | Finnhub API                                                 |
+| `fmp`              | Global equities                | Financial Modeling Prep API                                 |
+| `baostock`         | A-shares                       | BaoStock data                                               |
+| `eastmoney`        | A-shares                       | EastMoney data                                              |
+| `sina`             | A-shares                       | Sina Finance API                                            |
+| `stooq`            | Global                         | Stooq data                                                  |
+| `tiingo`           | US equities                    | Tiingo API                                                  |
+| `tencent`          | A-shares / HK                  | Tencent finance data                                        |
+| `sec_edgar_client` | US filings                     | SEC EDGAR filings enrichment (not a price data source)      |
+| `local`            | Local files                    | Read from local CSV files                                   |
+| `rsshub_events`    | Events                         | RSSHub event feed enrichment only (not a price data source) |
 
 ### Auto Routing
 
-When `source="auto"` (recommended for multi-asset portfolios), each symbol is classified by its pattern:
+When `source="auto"` (recommended for multi-asset portfolios), each symbol is classified by its pattern and routes through an ordered fallback chain:
 
-| Symbol Pattern | Market | Primary Source |
-|---|---|---|
-| `600519` (A-share ticker) | `a_share` | tushare / akshare |
-| `SPY`, `AAPL` (US ticker) | `us_equity` | yfinance |
-| `0700.HK` (HK ticker) | `hk_equity` | yfinance |
-| `BTC-USDT` (crypto pair) | `crypto` | okx / ccxt |
-| `EUR/USD` (forex pair) | `forex` | akshare |
-| `IF2406` (China futures) | `futures` | tushare |
-
-If the primary source returns no data, the runner automatically falls back to the next source in the chain (defined per-market in `FALLBACK_CHAINS` within `backtest/loaders/registry.py`).
+| Symbol Pattern            | Market      | Primary Source | Fallback Chain                                                                                |
+| ------------------------- | ----------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `600519` (A-share ticker) | `a_share`   | tencent        | mootdx → eastmoney → baostock → akshare → tushare → local                                     |
+| `SPY`, `AAPL` (US ticker) | `us_equity` | yahoo          | stooq → sina → eastmoney → yfinance → tiingo → fmp → finnhub → alphavantage → akshare → local |
+| `0700.HK` (HK ticker)     | `hk_equity` | eastmoney      | yahoo → futu → yfinance → akshare → local                                                     |
+| `BTC-USDT` (crypto pair)  | `crypto`    | okx            | ccxt → yfinance → local                                                                       |
+| `EUR/USD` (forex pair)    | `forex`     | akshare        | —                                                                                             |
+| `IF2406` (China futures)  | `futures`   | tushare        | akshare → local                                                                               |
 
 ## Market Engines
 
 The framework includes 8 market-specific engine classes, all inheriting from `BaseEngine` (`backtest/engines/base.py`). The runner selects the appropriate engine automatically based on detected market type:
 
-| Engine | Module | Market Rules |
-|---|---|---|
-| **China A-Shares** | `ChinaAEngine` | T+1 settlement, no short selling, price limits (±10% / ±20% / ±5%), minimum 100-share lots, stamp tax 0.05% sell-side |
-| **Global Equity** | `GlobalEquityEngine` | US / HK equities, T+0, no short restrictions |
-| **Crypto** | `CryptoEngine` | Crypto perpetuals with funding fees, liquidation thresholds, 24/7 trading (365 trading days) |
-| **Forex** | `ForexEngine` | FX spot/CFD with spread modeling, swap/rollover, high leverage |
-| **China Futures** | `ChinaFuturesEngine` | CFFEX/SHFE/DCE/ZCE/INE contract multipliers, margin requirements |
-| **Global Futures** | `GlobalFuturesEngine` | CME/ICE/Eurex contract multipliers |
-| **Options Portfolio** | `run_options_backtest` | Black-Scholes pricing (European/American), IV smile, multi-leg strategies, Greeks |
-| **Composite** | `CompositeEngine` | Cross-market engine with a shared capital pool; delegates market-rule calls to sub-engines |
+| Engine                | Module                 | Market Rules                                                                                                          |
+| --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **China A-Shares**    | `ChinaAEngine`         | T+1 settlement, no short selling, price limits (±10% / ±20% / ±5%), minimum 100-share lots, stamp tax 0.05% sell-side |
+| **Global Equity**     | `GlobalEquityEngine`   | US / HK equities, T+0, no short restrictions                                                                          |
+| **Crypto**            | `CryptoEngine`         | Crypto perpetuals with funding fees, liquidation thresholds, 24/7 trading (365 trading days)                          |
+| **Forex**             | `ForexEngine`          | FX spot/CFD with spread modeling, swap/rollover, high leverage                                                        |
+| **China Futures**     | `ChinaFuturesEngine`   | CFFEX/SHFE/DCE/ZCE/INE contract multipliers, margin requirements                                                      |
+| **Global Futures**    | `GlobalFuturesEngine`  | CME/ICE/Eurex contract multipliers                                                                                    |
+| **Options Portfolio** | `run_options_backtest` | Black-Scholes pricing (European/American), IV smile, multi-leg strategies, Greeks                                     |
+| **Composite**         | `CompositeEngine`      | Cross-market engine with a shared capital pool; delegates market-rule calls to sub-engines                            |
 
 ## Signal Engine
 
 Strategies are implemented as a `SignalEngine` class inside `code/signal_engine.py`. The runner:
 
-1. **AST-validates** the source file before importing it (rejects decorators, non-literal defaults, top-level statements, circular self-imports, unsafe annotations).
+1. **AST-validates** the source file before importing it (rejects decorators, non-literal defaults, top-level executable statements, unsafe annotations, and unsafe base classes).
 2. Verifies the class can be **instantiated with no arguments**.
 3. Calls `generate(data_map: Dict[str, pd.DataFrame]) -> Dict[str, pd.Series]`.
 
@@ -319,35 +334,35 @@ Splits the backtest into sequential non-overlapping windows, evaluates Sharpe, m
 
 After each run, the following artifacts are written to `run_dir/artifacts/`:
 
-| File | Content |
-|---|---|
-| `equity.csv` | Portfolio equity curve, returns, drawdowns, and benchmark equity |
-| `trades.csv` | Entry and exit events (order code, side, price, qty, P&L, holding days) |
-| `ohlcv_{code}.csv` | Per-symbol OHLCV data |
-| `positions.csv` | Target position weights over time |
-| `metrics.csv` | Summary metrics (final value, total return, annual return, Sharpe, Sortino, max drawdown, Calmar, win rate, profit factor, trade count, benchmark/excess returns, information ratio) |
-| `validation.json` | Statistical validation results (Monte Carlo p-values, Bootstrap CI, Walk-Forward consistency) |
+| File               | Content                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `equity.csv`       | Portfolio equity curve, returns, drawdowns, and benchmark equity                                                                                                                     |
+| `trades.csv`       | Entry and exit events (order code, side, price, qty, P&L, holding days)                                                                                                              |
+| `ohlcv_{code}.csv` | Per-symbol OHLCV data                                                                                                                                                                |
+| `positions.csv`    | Target position weights over time                                                                                                                                                    |
+| `metrics.csv`      | Summary metrics (final value, total return, annual return, Sharpe, Sortino, max drawdown, Calmar, win rate, profit factor, trade count, benchmark/excess returns, information ratio) |
+| `validation.json`  | Statistical validation results (Monte Carlo p-values, Bootstrap CI, Walk-Forward consistency)                                                                                        |
 
 ### Available Metrics
 
-| Metric | Description |
-|---|---|
-| `final_value` | Portfolio value at end of backtest |
-| `total_return` | Total return as a fraction |
-| `annual_return` | Annualized return (CAGR) |
-| `max_drawdown` | Maximum peak-to-trough drawdown |
-| `sharpe` | Annualized Sharpe ratio |
-| `sortino` | Annualized Sortino ratio |
-| `calmar` | Calmar ratio (annual return / max drawdown) |
-| `win_rate` | Fraction of profitable trades |
-| `profit_loss_ratio` | Average win / average loss |
-| `profit_factor` | Gross profit / gross loss |
-| `max_consecutive_loss` | Longest losing streak |
-| `avg_holding_days` | Average bars held per position |
-| `trade_count` | Number of completed round-trip trades |
-| `benchmark_return` | Return of the benchmark index |
-| `excess_return` | Strategy return minus benchmark return |
-| `information_ratio` | Excess return per unit of tracking error |
+| Metric                 | Description                                 |
+| ---------------------- | ------------------------------------------- |
+| `final_value`          | Portfolio value at end of backtest          |
+| `total_return`         | Total return as a fraction                  |
+| `annual_return`        | Annualized return (CAGR)                    |
+| `max_drawdown`         | Maximum peak-to-trough drawdown             |
+| `sharpe`               | Annualized Sharpe ratio                     |
+| `sortino`              | Annualized Sortino ratio                    |
+| `calmar`               | Calmar ratio (annual return / max drawdown) |
+| `win_rate`             | Fraction of profitable trades               |
+| `profit_loss_ratio`    | Average win / average loss                  |
+| `profit_factor`        | Gross profit / gross loss                   |
+| `max_consecutive_loss` | Longest losing streak                       |
+| `avg_holding_days`     | Average bars held per position              |
+| `trade_count`          | Number of completed round-trip trades       |
+| `benchmark_return`     | Return of the benchmark index               |
+| `excess_return`        | Strategy return minus benchmark return      |
+| `information_ratio`    | Excess return per unit of tracking error    |
 
 ## Trust Layer Run Cards
 
@@ -397,8 +412,8 @@ agent/backtest/
 │   ├── ccxt_loader.py       # CCXT (multi-exchange crypto)
 │   ├── futu.py            # Futu Securities
 │   ├── mootdx_loader.py     # MootDX (A-shares)
-│   ├── alphavantage_loader.py  # Alpha Vantage
-│   ├── finnhub_loader.py      # Finnhub
+│   ├── alphavantage_loader.py  # Alpha Vantage (daily OHLCV, key-gated)
+│   ├── finnhub_loader.py      # Finnhub (stock candles, key-gated)
 │   ├── fmp_loader.py            # Financial Modeling Prep
 │   ├── baostock_loader.py       # BaoStock
 │   ├── eastmoney_loader.py      # EastMoney
@@ -406,15 +421,12 @@ agent/backtest/
 │   ├── stooq_loader.py          # Stooq
 │   ├── tiingo_loader.py         # Tiingo
 │   ├── tencent_loader.py        # Tencent Finance
+│   ├── yahoo_loader.py          # Yahoo (direct HTTP, no-auth)
+│   ├── yahoo_client.py          # Yahoo low-level client
 │   ├── sec_edgar_client.py      # SEC EDGAR filings
 │   ├── local_loader.py          # Local CSV files
 │   ├── tushare_fundamentals.py  # Tushare statement enrichment
 │   ├── rsshub_events.py         # RSSHub event feed enrichment
-│   ├── yahoo_client.py          # Yahoo low-level client
-│   ├── alphavantage_loader.py   # Alpha Vantage (stubs check)
-│   ├── finnhub_loader.py        # Finnhub (stubs check)
-│   ├── _http.py             # HTTP utilities
-│   └── _symbol_utils.py     # Symbol classification helpers
 └── optimizers/
     ├── __init__.py
     ├── base.py          # Optimizer base class
