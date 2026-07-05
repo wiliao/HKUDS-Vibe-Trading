@@ -50,14 +50,22 @@
 
 ## 📰 ニュース
 
+- **2026-07-04** 🧩 **API route slices, Chinese tutorial docs, and safer dependency floors**：IM channel と Settings routes は `api_server.py` から `src/api/channels_routes.py` / `src/api/settings_routes.py` に移り、[#331](https://github.com/HKUDS/Vibe-Trading/issues/331) の狭い modularization path を継続します（[#379](https://github.com/HKUDS/Vibe-Trading/pull/379)、[#382](https://github.com/HKUDS/Vibe-Trading/pull/382)、@shadowinlife さんに感謝）。Wiki には非金融読者向けの中国語入門チュートリアルが加わり（[#393](https://github.com/HKUDS/Vibe-Trading/pull/393)、@kadaliao さんに感謝）、Pillow / LangChain / LangGraph の dependency floors も installable な patched track に更新されました（[#390](https://github.com/HKUDS/Vibe-Trading/pull/390)、@aeonframework さんに感謝）。
+
+- **2026-07-03** 🛡️ **Robinhood MCP refresh + API modularization + SSRF guard**：Robinhood Agentic Trading は generic reads、live-runner plumbing、default read-only seeds、mandate-gate tests のすべてで現在の MCP tool names を使うようになり、interactive startup も provider loader と同じ `.env` 探索順（`~/.vibe-trading/.env` → `agent/.env` → `$CWD/.env`）を尊重します（[#391](https://github.com/HKUDS/Vibe-Trading/pull/391)、[#381](https://github.com/HKUDS/Vibe-Trading/issues/381) と [#380](https://github.com/HKUDS/Vibe-Trading/issues/380) をクローズ）。System routes（`/health`、`/correlation`、`/system/shutdown`、`/skills`、`/api`）は次の狭い API modularization slice として `src/api/system_routes.py` に移りました（[#378](https://github.com/HKUDS/Vibe-Trading/pull/378)、@shadowinlife さんに感謝）。Channel media SSRF defenses は fetch 前に CGNAT/mesh/non-global targets と QQ media redirect-to-internal を拒否するようになりました（[#389](https://github.com/HKUDS/Vibe-Trading/pull/389)、@hobostay さんに感謝）。
+
+- **2026-07-02** ⚡ **Factor acceleration + safer runtime boundaries**：rolling factor のホットパスは `bottleneck`/NumPy fast path を使うようになり、alpha bench の process parallelism は巨大 panel payload を worker ごとに繰り返し渡さず、base equity 計算にも regression coverage が入りました（[#376](https://github.com/HKUDS/Vibe-Trading/pull/376)、[#339](https://github.com/HKUDS/Vibe-Trading/issues/339) をクローズ、元の実装は @shadowinlife さんの [#342](https://github.com/HKUDS/Vibe-Trading/pull/342)）。Upload と Shadow report routes は巨大な `api_server.py` から切り出され、API modularization の最初の狭い slice になりました。[#331](https://github.com/HKUDS/Vibe-Trading/issues/331) は引き続き open です（[#375](https://github.com/HKUDS/Vibe-Trading/pull/375)、[#358](https://github.com/HKUDS/Vibe-Trading/pull/358) ベース、@shadowinlife さんに感謝）。Generated backtest subprocess は parent secrets surface 全体ではなく allowlist された環境だけを継承するようになり（[#374](https://github.com/HKUDS/Vibe-Trading/pull/374)、[#332](https://github.com/HKUDS/Vibe-Trading/issues/332) をクローズ）、IM channels には `/new` session reset と case-insensitive pairing commands も入りました（[#372](https://github.com/HKUDS/Vibe-Trading/pull/372)、[#371](https://github.com/HKUDS/Vibe-Trading/issues/371) をクローズ、@shadowinlife さんに感謝）。
+
+<details>
+<summary>過去のニュース</summary>
+
+- **2026-07-01** 🧹 **Security polish + tracker cleanup**：API/Docker/frontend dev defaults を締め、Settings channel と `zh-CN` edges を安定化し、frontend dependency/CSP alerts を解消、古い WhatsApp + paper-trading tracker items も整理しました（[#338](https://github.com/HKUDS/Vibe-Trading/pull/338)、[#351](https://github.com/HKUDS/Vibe-Trading/pull/351)、[#349](https://github.com/HKUDS/Vibe-Trading/pull/349)、[#365](https://github.com/HKUDS/Vibe-Trading/pull/365)、[#367](https://github.com/HKUDS/Vibe-Trading/pull/367)、[#350](https://github.com/HKUDS/Vibe-Trading/pull/350)、[#335](https://github.com/HKUDS/Vibe-Trading/pull/335)、[#283](https://github.com/HKUDS/Vibe-Trading/issues/283)）。
+
 - **2026-06-30** 💬 **研究配信用の IM チャンネルランタイム**：Vibe-Trading は同じ agent session runtime を 16 の組み込み message adapter に接続できるようになりました——WebSocket、Telegram、Slack、Discord、Matrix、WhatsApp、Signal、QQ/NapCat、WeChat/WeCom、Feishu/Lark、DingTalk、Teams、email、Mochat。CLI（`vibe-trading channels status/start/stop/login/pairing`）、REST（`/channels/status`、`/channels/start`、`/channels/stop`、`/channels/pairing/command`）、Web UI Settings panel が status、recovery hints、start/stop、sender pairing を扱い、SDK-backed adapters は `vibe-trading-ai[telegram]` や `vibe-trading-ai[channels]` などの extras の背後に残ります（[#341](https://github.com/HKUDS/Vibe-Trading/pull/341)）。
 
 - **2026-06-29** 🛡️ **Live advisory safety + Trading 212 read-only connector + Windows/Gemini fixes**: live order guards now have an opt-in, broker-agnostic `PreTradeAdvisoryInterface` that records advisory reviews without bypassing the mandate gate, kill switch, or audit trail ([#328](https://github.com/HKUDS/Vibe-Trading/pull/328), closes [#317](https://github.com/HKUDS/Vibe-Trading/issues/317), thanks @shadowinlife). Trading 212 joins the connector layer with read-only account, positions, orders, history, and instrument-metadata support; `place_order` / `cancel_order` still hard-refuse until a structural paper/live boundary exists ([#321](https://github.com/HKUDS/Vibe-Trading/pull/321), closes [#309](https://github.com/HKUDS/Vibe-Trading/issues/309), thanks @mvanhorn). Windows startup avoids the pandas 3.0 `Timestamp` crash via the `<3.0.0` constraint ([#329](https://github.com/HKUDS/Vibe-Trading/pull/329), closes [#324](https://github.com/HKUDS/Vibe-Trading/issues/324), thanks @hannibal-lee); Gemini `thought_signature` dict-history replay was verified/fixed on `main` ([#318](https://github.com/HKUDS/Vibe-Trading/issues/318)); `.US` financial statements now route to SEC EDGAR instead of Eastmoney ([#325](https://github.com/HKUDS/Vibe-Trading/issues/325)); and the Alpha Library landing page got cache/date/selector/noscript/DNS-prefetch hardening while heavier CSP and social-card follow-ups stay tracked ([#323](https://github.com/HKUDS/Vibe-Trading/issues/323)).
 
 - **2026-06-28** 🧰 **クロスプラットフォーム setup/dev + runtime と file tool の強化**：`vibe-trading setup` と `vibe-trading dev` は、Windows の TypeScript build、正しい cwd からの backend 起動、Vite の 5899 port、終了時の子プロセス cleanup を正しく扱うようになりました（[#292](https://github.com/HKUDS/Vibe-Trading/pull/292)、@digger-yu さんに感謝）。Runtime status polling はクラッシュせず graceful に degrade し（[#322](https://github.com/HKUDS/Vibe-Trading/issues/322)）、MCP OAuth cache key は sanitize され（[#313](https://github.com/HKUDS/Vibe-Trading/issues/313)）、OpenAI default と Robinhood `agent.json` validation も強化されました（[#319](https://github.com/HKUDS/Vibe-Trading/pull/319)、[#320](https://github.com/HKUDS/Vibe-Trading/pull/320)、@mvanhorn さんに感謝）。File tools には独立した read/write roots と sandbox tests の拡充も入りました（[#299](https://github.com/HKUDS/Vibe-Trading/pull/299)、@skloxo さんに感謝）。
-<details>
-<summary>過去のニュース</summary>
-
 - **2026-06-27** 🧯 **Content-filter resilience + Shadow Account feature contract cleanup**：event-driven / swarm run は、個別の LLM content-moderation hit をスキップし、filter rate が高い場合は run card で警告し、Gemini safety finish reason を認識して analysis 全体を abort しないようになりました（[#308](https://github.com/HKUDS/Vibe-Trading/pull/308)、[#307](https://github.com/HKUDS/Vibe-Trading/issues/307) をクローズ、@shadowinlife さんに感謝）。Shadow Account の extraction/codegen は同じ `PRICE_FEATURES` contract を共有し、4 桁小数の return bounds を保つことで、rule/codegen drift と `prior_5d_return` の精度落ちを防ぎます（[#316](https://github.com/HKUDS/Vibe-Trading/pull/316)、@Robin1987China さんに感謝）。
 - **2026-06-26** 🎯 **Shadow Account の条件付きエントリー + tushare ETF/指数/HK ルーティング**：抽出された Shadow Account ルールが RSI / prior-return のレンジを持つようになり、生成される SignalEngine は保有サイクルを盲目的に再生せず、実際の条件（RSI がレンジ内、prior-return がレンジ内）でエントリーします（[#314](https://github.com/HKUDS/Vibe-Trading/pull/314)、[#302](https://github.com/HKUDS/Vibe-Trading/pull/302) の follow-up、@Robin1987China さんに感謝）。tushare loader も ETF/LOF を `fund_daily()`、指数を `index_daily()`、香港株を `hk_daily()` にルーティングし、非株式に対して静かに空を返す `daily()` を常に呼ぶのをやめ、銘柄ごとの空結果 + 部分取得の警告を追加しました（[#315](https://github.com/HKUDS/Vibe-Trading/pull/315)、[#310](https://github.com/HKUDS/Vibe-Trading/issues/310) をクローズ、@shadowinlife さんに感謝）。
 - **2026-06-25** 🧪 **strict validation JSON + 落ち着いた agent context**：単独のバックテスト validation は、`artifacts/validation.json` や CLI stdout に書き出す前に入れ子の `NaN` / `Infinity` を正規化するようになり、strict JSON parser が validation payload で詰まらなくなりました（[#306](https://github.com/HKUDS/Vibe-Trading/pull/306)、@gyx09212214-prog さんに感謝）。Agent prompt も loader registry から現在の data-source 数を動的に導出し、`_microcompact()` は本当に token pressure がある時だけ動くため、短い実行で古い tool result が早すぎるタイミングで消されません（[#296](https://github.com/HKUDS/Vibe-Trading/pull/296)、[#282](https://github.com/HKUDS/Vibe-Trading/issues/282) をクローズ、@MarkfuGod さんに感謝）。
@@ -669,6 +677,17 @@ vibe-trading channels pairing --channel telegram list
 
 Built-in adapters は `websocket`、`telegram`、`slack`、`discord`、`matrix`、`whatsapp`、`signal`、`qq`、`napcat`、`weixin`、`wecom`、`feishu`、`dingtalk`、`msteams`、`email`、`mochat` です。個別に `pip install "vibe-trading-ai[telegram]"` を使うか、全チャンネル分を `pip install "vibe-trading-ai[channels]"` で入れられます。
 
+**チャット内スラッシュコマンド**（チャンネル非依存、全 16 adapter で共通）：
+
+| コマンド | 説明 |
+|---------|------|
+| `/new` | 現在のセッションをリセット——次のメッセージで新しい会話を開始 |
+| `/reset` | `/new` のエイリアス |
+| `/newsession` | `/new` のエイリアス |
+| `/pairing list` | 保留中の sender pairing リクエストを表示 |
+
+コマンドは大文字小文字を区別せず、メッセージ全体として送信する必要があります（例：`hello /new` はリセットではなく通常メッセージとして処理されます）。
+
 </details>
 
 ---
@@ -1010,8 +1029,8 @@ Vibe-Trading は **[HKUDS](https://github.com/HKUDS)** agent ecosystem の一部
 <table>
   <tr>
     <td align="center" width="20%">
-      <a href="https://github.com/HKUDS"><b>HKUDS Agents</b></a><br>
-      <sub>Open Agent Infrastructure</sub>
+      <a href="https://github.com/HKUDS/nanobot"><b>NanoBot</b></a><br>
+      <sub>Ultra-Lightweight Personal AI Assistant</sub>
     </td>
     <td align="center" width="20%">
       <a href="https://github.com/HKUDS/AI-Trader"><b>AI-Trader</b></a><br>
