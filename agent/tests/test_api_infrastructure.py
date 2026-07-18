@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import pytest
 
 import api_server
@@ -225,6 +226,25 @@ def test_read_write_env_values_roundtrip(tmp_path):
     assert updated["FOO"] == "updated"
     assert updated["NEW_KEY"] == "new_val"
     assert updated["BAZ"] == "qux"
+
+
+def test_settings_default_to_user_writable_config_path() -> None:
+    """Web settings must not target the installed package directory."""
+    from pathlib import Path
+
+    assert helpers.ENV_PATH == Path.home() / ".vibe-trading" / ".env"
+    assert helpers.LEGACY_ENV_PATH == helpers.AGENT_DIR / ".env"
+
+
+def test_write_env_values_creates_private_parent_directory(tmp_path) -> None:
+    target = tmp_path / "nested" / ".env"
+
+    helpers._write_env_values(target, {"KEY": "value"})
+
+    assert helpers._read_env_values(target) == {"KEY": "value"}
+    if os.name != "nt":
+        assert (target.parent.stat().st_mode & 0o777) == 0o700
+        assert (target.stat().st_mode & 0o777) == 0o600
 
 
 def test_strip_env_value_quotes():

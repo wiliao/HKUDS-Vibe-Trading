@@ -441,6 +441,8 @@ def _ensure_dotenv() -> None:
             _load_env_file(candidate)
             loaded = candidate
             break
+    if loaded is not None:
+        reset_env_config()
     _dotenv_loaded = True
     # P08 R1: one-time, behavior-preserving diagnostic so a stale or
     # shadowed .env is observable instead of costing hours. The path is
@@ -501,7 +503,7 @@ def _sync_provider_env() -> None:
         os.environ["OPENAI_API_KEY"] = api_key
     if base_url:
         os.environ["OPENAI_API_BASE"] = base_url
-        os.environ.setdefault("OPENAI_BASE_URL", base_url)
+        os.environ["OPENAI_BASE_URL"] = base_url
 
 
 def provider_diagnostics() -> dict[str, Any]:

@@ -403,6 +403,8 @@ def _provider_key_env(provider: str | None) -> str | None:
         "requesty": "REQUESTY_API_KEY",
         "openai": "OPENAI_API_KEY",
         "deepseek": "DEEPSEEK_API_KEY",
+        "nvidia": "NVIDIA_API_KEY",
+        "nvidia-nim": "NVIDIA_API_KEY",
         "gemini": "GEMINI_API_KEY",
         "groq": "GROQ_API_KEY",
         "dashscope": "DASHSCOPE_API_KEY",
@@ -423,6 +425,8 @@ def _provider_base_env(provider: str | None) -> str | None:
         "openai": "OPENAI_BASE_URL",
         "openai-codex": "OPENAI_CODEX_BASE_URL",
         "deepseek": "DEEPSEEK_BASE_URL",
+        "nvidia": "NVIDIA_BASE_URL",
+        "nvidia-nim": "NVIDIA_BASE_URL",
         "gemini": "GEMINI_BASE_URL",
         "groq": "GROQ_BASE_URL",
         "dashscope": "DASHSCOPE_BASE_URL",
@@ -2835,7 +2839,9 @@ def _api_auth_headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {key}"} if key else {}
 
 
-def _live_api_call(method: str, path: str, *, body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _live_api_call(
+    method: str, path: str, *, body: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Call an R6 live-runner endpoint and decode the JSON response.
 
     Args:
@@ -2852,11 +2858,12 @@ def _live_api_call(method: str, path: str, *, body: Optional[Dict[str, Any]] = N
     import httpx
 
     url = f"{_live_api_base()}{path}"
+    headers = _api_auth_headers()
     try:
         if method.upper() == "GET":
-            response = httpx.get(url, timeout=30.0)
+            response = httpx.get(url, headers=headers, timeout=30.0)
         else:
-            response = httpx.post(url, json=body or {}, timeout=30.0)
+            response = httpx.post(url, json=body or {}, headers=headers, timeout=30.0)
         response.raise_for_status()
         return response.json()
     except Exception as exc:  # noqa: BLE001 — surface a clean error to the user
@@ -4659,6 +4666,16 @@ _PROVIDER_CHOICES: list[dict[str, str | None]] = [
         "key_placeholder": "sk-...",
     },
     {
+        "label": "NVIDIA NIM",
+        "provider": "nvidia",
+        "key_env": "NVIDIA_API_KEY",
+        "base_env": "NVIDIA_BASE_URL",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "key_prefix": "nvapi-",
+        "key_placeholder": "nvapi-...",
+    },
+    {
         "label": "OpenAI",
         "provider": "openai",
         "key_env": "OPENAI_API_KEY",
@@ -4789,6 +4806,8 @@ def _render_env_content(config: dict[str, str]) -> str:
         "REQUESTY_BASE_URL",
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_BASE_URL",
+        "NVIDIA_API_KEY",
+        "NVIDIA_BASE_URL",
         "OPENAI_API_KEY",
         "OPENAI_BASE_URL",
         "OPENAI_CODEX_BASE_URL",
